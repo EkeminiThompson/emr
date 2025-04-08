@@ -1,36 +1,39 @@
-# backend/app/config.py
-
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    # Database Configuration
     DATABASE_USER: str
     DATABASE_PASSWORD: str
     DATABASE_HOST: str
     DATABASE_PORT: int
     DATABASE_NAME: str
+    
+    # Secret Key and SMTP Configuration
     SECRET_KEY: str
     SMTP_SERVER: str
     SMTP_PORT: int
     SMTP_USER: str
     SMTP_PASSWORD: str
 
+    # Supabase Settings
+    SUPABASE_URL: str
+    SUPABASE_KEY: str
+
     # Optional: To specify where the .env file is
     class Config:
-        env_file = ".env"  # Make sure the .env file is loaded
+        env_file = ".env"  # Ensure the .env file is loaded
         env_file_encoding = "utf-8"
-        extra = "allow"  
+        extra = "allow"  # Allow extra fields in the environment file (for future changes)
 
-    # Construct PostgreSQL database URL
+    # Construct PostgreSQL database URL dynamically
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
 
-    # Test database URL (Optional)
-    #TEST_DATABASE_NAME: str = "test_db"
-
+    # Optional: Test database URL
     @property
     def DATABASE_TEST_URL(self) -> str:
-        return f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.TEST_DATABASE_NAME}"
+        return f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}_test"
 
     # JWT Authentication settings
     ALGORITHM: str = "HS256"

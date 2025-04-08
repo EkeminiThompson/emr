@@ -27,7 +27,7 @@ from .services.audit_logger import AuditLogger
 logger = logging.getLogger("uvicorn.error")
 
 # Define the database URL
-SQLALCHEMY_DATABASE_URL = "postgresql://renewal_ridge_emr:postgres@renewal_ridge_db:5432/renewal_ridge_emr"
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres.zphcvrojjhwfulflnbig:postgres20206@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
 
 # Create the engine with production-ready settings
 engine = create_engine(
