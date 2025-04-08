@@ -9,7 +9,6 @@ annotated-types
 anyio
 async-timeout
 attrs
-bcrypt
 blinker
 CacheControl
 cachelib
@@ -50,7 +49,6 @@ pandas
 openpyxl
 
 # Authentication & Security
-passlib
 PyJWT
 
 # Google Services
@@ -147,3 +145,5 @@ websockets
 Werkzeug
 wrapt
 yarl
+bcrypt==4.1.2
+passlib==1.7.4

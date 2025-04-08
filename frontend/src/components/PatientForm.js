@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../api/axiosInstance'; // Using the centralized axios instance
 import {
   TextField,
   Button,
@@ -54,8 +54,8 @@ const RELIGION_OPTIONS = [
 ];
 
 const PATIENT_FIELDS = [
-  { name: 'source_of_info', label: 'Source of Info', type: 'text' }, // Changed from select to text
-  { name: 'relationship_to_patient', label: 'Relationship to Patient', type: 'text' }, // Changed from select to text
+  { name: 'source_of_info', label: 'Source of Info', type: 'text' },
+  { name: 'relationship_to_patient', label: 'Relationship to Patient', type: 'text' },
   { name: 'surname', label: 'Surname', type: 'text' },
   { name: 'other_names', label: 'Other Names', type: 'text' },
   { name: 'residential_address', label: 'Residential Address', type: 'text' },
@@ -79,8 +79,6 @@ const PATIENT_FIELDS = [
   { name: 'family_doctor_phone', label: 'Family Doctor Phone', type: 'tel' },
   { name: 'consultation_fee', label: 'Consultation Fee', type: 'number' }
 ];
-
-// ... rest of your code remains exactly the same ...
 
 const calculateAge = (birthDate) => {
   if (!birthDate) return '';
@@ -119,32 +117,6 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
   // Get token from localStorage
   const token = localStorage.getItem('access_token');
   const [roles, setRoles] = useState([]);
-
-  // Initialize axios instance with interceptors
-  const api = axios.create({
-    baseURL: process.env.REACT_APP_API_BASE_URL || '',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-
-  // Add request interceptor to include token
-  api.interceptors.request.use(config => {
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  }, error => {
-    return Promise.reject(error);
-  });
-
-  // Add response interceptor to handle 401 errors
-  api.interceptors.response.use(response => response, error => {
-    if (error.response?.status === 401) {
-      handleLogout();
-    }
-    return Promise.reject(error);
-  });
 
   useEffect(() => {
     const verifyTokenAndFetchData = async () => {
@@ -188,7 +160,7 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
   const fetchPatient = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`${API_BASE_URL}/${patientId}`);
+      const response = await axios.get(`${API_BASE_URL}/${patientId}`);
       
       // Ensure date fields are properly formatted
       const patientData = response.data;
@@ -206,7 +178,7 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
 
   const logAuditAction = async (action, entityId, description) => {
     try {
-      await api.post(AUDIT_API_URL, {
+      await axios.post(AUDIT_API_URL, {
         action,
         entity_type: 'Patient',
         entity_id: entityId,
@@ -268,7 +240,7 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
     try {
       let response;
       if (patientId) {
-        response = await api.put(`${API_BASE_URL}/${patientId}`, patient);
+        response = await axios.put(`${API_BASE_URL}/${patientId}`, patient);
         setMessage('Patient updated successfully!');
         await logAuditAction(
           'patient_update', 
@@ -276,7 +248,7 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
           `Updated patient record for ${patient.surname}, ${patient.other_names}`
         );
       } else {
-        response = await api.post(`${API_BASE_URL}/`, patient);
+        response = await axios.post(`${API_BASE_URL}/`, patient);
         setMessage('Patient created successfully!');
         await logAuditAction(
           'patient_create',
