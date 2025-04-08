@@ -25,8 +25,6 @@ import {
 } from "@mui/material";
 import { Edit, Delete } from "@mui/icons-material";
 
-
-
 const Dashboard = () => {
   const [tabValue, setTabValue] = useState(0);
   const [doctors, setDoctors] = useState([]);
@@ -50,6 +48,7 @@ const Dashboard = () => {
         ]);
       } catch (error) {
         setError("Failed to fetch data. Please try again later.");
+        console.error("Fetch error:", error);
       } finally {
         setLoading(false);
       }
@@ -58,28 +57,53 @@ const Dashboard = () => {
   }, []);
 
   const fetchDoctors = async () => {
-    const response = await axios.get("/v1/admin/doctors/");
-    setDoctors(response.data);
+    try {
+      const response = await axios.get("/v1/admin/doctors/");
+      setDoctors(response.data);
+    } catch (error) {
+      console.error("Error fetching doctors:", error);
+      throw error;
+    }
   };
 
   const fetchUsers = async () => {
-    const response = await axios.get("/v1/admin/users/");
-    setUsers(response.data);
+    try {
+      const response = await axios.get("/v1/admin/users/");
+      setUsers(response.data);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      throw error;
+    }
   };
 
   const fetchStaff = async () => {
-    const response = await axios.get("/v1/admin/staff/");
-    setStaff(response.data);
+    try {
+      const response = await axios.get("/v1/admin/staff/");
+      setStaff(response.data);
+    } catch (error) {
+      console.error("Error fetching staff:", error);
+      throw error;
+    }
   };
 
   const fetchRoles = async () => {
-    const response = await axios.get("/v1/admin/roles/");
-    setRoles(response.data);
+    try {
+      const response = await axios.get("/v1/admin/roles/");
+      setRoles(response.data);
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+      throw error;
+    }
   };
 
   const fetchNurses = async () => {
-    const response = await axios.get("/v1/admin/nurses/");
-    setNurses(response.data);
+    try {
+      const response = await axios.get("/v1/admin/nurses/");
+      setNurses(response.data);
+    } catch (error) {
+      console.error("Error fetching nurses:", error);
+      throw error;
+    }
   };
 
   const handleTabChange = (event, newValue) => {
@@ -171,20 +195,23 @@ const EntityTab = ({ title, data, columns, endpoint, fetchData, isUser = false }
   const [editMode, setEditMode] = useState(false);
   const [error, setError] = useState(null);
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [roles, setRoles] = useState([]); // State to store available roles
+  const [roles, setRoles] = useState([]);
 
-  // Fetch roles when the component mounts
   useEffect(() => {
     const fetchRoles = async () => {
       try {
         const response = await axios.get("/v1/admin/roles/");
         setRoles(response.data);
       } catch (error) {
+        console.error("Error fetching roles:", error);
         setError("Failed to fetch roles.");
       }
     };
-    fetchRoles();
-  }, []);
+    
+    if (isUser) {
+      fetchRoles();
+    }
+  }, [isUser]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
@@ -196,8 +223,7 @@ const EntityTab = ({ title, data, columns, endpoint, fetchData, isUser = false }
   };
 
   const handleRoleChange = (e) => {
-    const selectedRoleIds = e.target.value; // Array of selected role IDs
-    setFormData({ ...formData, role_ids: selectedRoleIds });
+    setFormData({ ...formData, role_ids: e.target.value });
   };
 
   const handleConfirmPasswordChange = (e) => {
@@ -205,27 +231,32 @@ const EntityTab = ({ title, data, columns, endpoint, fetchData, isUser = false }
   };
 
   const handleAddOrUpdate = async () => {
-    if (isUser && !editMode && formData.password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (isUser && !editMode && (!formData.password || formData.password.length < 6)) {
-      setError("Password must be at least 6 characters long.");
-      return;
-    }
     try {
+      if (isUser && !editMode) {
+        if (formData.password !== confirmPassword) {
+          setError("Passwords do not match");
+          return;
+        }
+        if (!formData.password || formData.password.length < 6) {
+          setError("Password must be at least 6 characters");
+          return;
+        }
+      }
+
       if (editMode) {
         await axios.put(`${endpoint}${formData.id}/`, formData);
       } else {
-        const { id, ...newEntity } = formData;
-        await axios.post(endpoint, newEntity);
+        await axios.post(endpoint, formData);
       }
+      
       fetchData();
       setFormData({});
       setEditMode(false);
       setConfirmPassword("");
+      setError(null);
     } catch (error) {
-      setError(`Error: ${error.response?.data?.detail || error.message}`);
+      console.error("API Error:", error);
+      setError(error.response?.data?.message || "An error occurred");
     }
   };
 
@@ -239,12 +270,13 @@ const EntityTab = ({ title, data, columns, endpoint, fetchData, isUser = false }
       await axios.delete(`${endpoint}${id}/`);
       fetchData();
     } catch (error) {
-      setError(`Error: ${error.response?.data?.detail || error.message}`);
+      console.error("Delete Error:", error);
+      setError(error.response?.data?.message || "Failed to delete");
     }
   };
 
-  const filteredData = data.filter((item) =>
-    Object.values(item).some((value) =>
+  const filteredData = data.filter(item =>
+    Object.values(item).some(value =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
@@ -268,22 +300,25 @@ const EntityTab = ({ title, data, columns, endpoint, fetchData, isUser = false }
         <Table>
           <TableHead>
             <TableRow>
-              {columns.map((column) => (
+              {columns.map(column => (
                 <TableCell key={column}>{column}</TableCell>
               ))}
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredData.map((row) => (
+            {filteredData.map(row => (
               <TableRow key={row.id}>
-                {columns.map((column) => (
-                  <TableCell key={column}>
-                    {column === "Role IDs"
-                      ? (row.role_ids ? row.role_ids.join(", ") : "")
-                      : row[column.toLowerCase().replace(" ", "_")]}
-                  </TableCell>
-                ))}
+                {columns.map(column => {
+                  const key = column.toLowerCase().replace(/\s+/g, '_');
+                  return (
+                    <TableCell key={`${row.id}-${key}`}>
+                      {column === "Role IDs" 
+                        ? row.role_ids?.join(', ') || ''
+                        : row[key]}
+                    </TableCell>
+                  );
+                })}
                 <TableCell>
                   <IconButton onClick={() => handleEdit(row)}>
                     <Edit />
@@ -298,22 +333,25 @@ const EntityTab = ({ title, data, columns, endpoint, fetchData, isUser = false }
         </Table>
       </TableContainer>
 
-      <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-        {editMode ? "Edit" : "Add New"} {title}
-      </Typography>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
-        {columns.map((column) => {
+      <Box sx={{ mt: 4, p: 3, border: '1px solid #ddd', borderRadius: 1 }}>
+        <Typography variant="h6" gutterBottom>
+          {editMode ? "Edit" : "Add New"} {title}
+        </Typography>
+        
+        {columns.map(column => {
+          const fieldName = column.toLowerCase().replace(/\s+/g, '_');
+          
           if (column === "Role IDs" && isUser) {
             return (
-              <FormControl fullWidth key={column}>
+              <FormControl fullWidth key="roles" sx={{ mb: 2 }}>
                 <InputLabel>Roles</InputLabel>
                 <Select
                   multiple
-                  label="Roles"
                   value={formData.role_ids || []}
                   onChange={handleRoleChange}
+                  label="Roles"
                 >
-                  {roles.map((role) => (
+                  {roles.map(role => (
                     <MenuItem key={role.id} value={role.id}>
                       {role.name}
                     </MenuItem>
@@ -321,50 +359,83 @@ const EntityTab = ({ title, data, columns, endpoint, fetchData, isUser = false }
                 </Select>
               </FormControl>
             );
-          } else if (column === "Password" && isUser && !editMode) {
+          }
+          
+          if (column === "Password" && isUser) {
+            if (editMode) return null;
             return (
-              <>
+              <React.Fragment key="password-fields">
                 <TextField
-                  key={column}
-                  label={column}
-                  name="password"
+                  label="Password"
                   type="password"
-                  value={formData.password || ""}
+                  name="password"
+                  value={formData.password || ''}
                   onChange={handleInputChange}
-                  required
+                  fullWidth
+                  sx={{ mb: 2 }}
+                  required={!editMode}
                 />
                 <TextField
-                  key="ConfirmPassword"
                   label="Confirm Password"
-                  name="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={handleConfirmPasswordChange}
-                  required
+                  fullWidth
+                  sx={{ mb: 2 }}
+                  required={!editMode}
                 />
-              </>
+              </React.Fragment>
             );
-          } else if (column !== "ID") {
+          }
+          
+          if (column !== "ID") {
             return (
               <TextField
-                key={column}
+                key={fieldName}
                 label={column}
-                name={column.toLowerCase().replace(" ", "_")}
-                value={formData[column.toLowerCase().replace(" ", "_")] || ""}
+                name={fieldName}
+                value={formData[fieldName] || ''}
                 onChange={handleInputChange}
+                fullWidth
+                sx={{ mb: 2 }}
+                type={column === "Password" ? "password" : "text"}
               />
             );
           }
           return null;
         })}
+
+        <Button 
+          variant="contained" 
+          onClick={handleAddOrUpdate}
+          sx={{ mt: 2 }}
+        >
+          {editMode ? "Update" : "Add"} {title}
+        </Button>
+
+        {editMode && (
+          <Button 
+            variant="outlined" 
+            onClick={() => {
+              setFormData({});
+              setEditMode(false);
+              setConfirmPassword("");
+            }}
+            sx={{ mt: 2, ml: 2 }}
+          >
+            Cancel
+          </Button>
+        )}
       </Box>
-      <Button variant="contained" color="primary" onClick={handleAddOrUpdate}>
-        {editMode ? "Update" : "Add"} {title}
-      </Button>
 
       {error && (
-        <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)}>
-          <Alert onClose={() => setError(null)} severity="error" sx={{ width: "100%" }}>
+        <Snackbar 
+          open={!!error} 
+          autoHideDuration={6000} 
+          onClose={() => setError(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert severity="error" onClose={() => setError(null)}>
             {error}
           </Alert>
         </Snackbar>

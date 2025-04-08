@@ -78,6 +78,6 @@
     "url": "https://github.com/yourusername/your-repository.git"
   },
   "license": "MIT",
-  "proxy": "http://renewal_ridge_fastapi:8000"
+  "proxy": "https://emr-5.onrender.com"
 
 }

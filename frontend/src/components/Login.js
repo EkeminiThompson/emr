@@ -7,6 +7,8 @@ import { UserOutlined, LockOutlined } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || "https://emr-5.onrender.com";
+
 const Login = ({ setIsLoggedIn, setUser }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
   };
 
   const handleApiLogin = async (username, password) => {
-    const response = await axios.post("/v1/admin/v1/auth/login", {
+    const response = await axios.post(`${API_BASE_URL}/v1/admin/v1/auth/login`, {
       username,
       password,
     });
@@ -149,7 +151,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
   );
 };
 
-// Updated styles without brand container styling
+// Styles remain unchanged
 const styles = {
   loginContainer: {
     display: 'flex',
