@@ -1,20 +1,13 @@
-# Use official Node.js image
-FROM node:16
-
-# Set the working directory inside the container
+FROM node:16 as builder
 WORKDIR /app
-
-# Copy package.json and package-lock.json (or yarn.lock)
-COPY package*.json ./
-
-# Install dependencies (including devDependencies)
-RUN npm install --only=production --legacy-peer-deps
-
-# Copy the rest of the application code
+COPY package*.json .
+RUN npm install --production
 COPY . .
 
-# Expose the port that your Node.js app runs on
-EXPOSE 5000
+FROM node:16-alpine
+WORKDIR /app
+COPY --from=builder /app .
+USER node
 
-# Start the application using Node.js directly (production mode)
+EXPOSE 5000
 CMD ["node", "server.js"]

@@ -1,18 +1,11 @@
-# Use Node.js as the base image for development
-FROM node:16 AS development
-
-# Set the working directory inside the container
+FROM node:16 as builder
 WORKDIR /app
-
-# Copy the package.json and package-lock.json (or yarn.lock) and install dependencies
-COPY package*.json ./
-RUN npm install --legacy-peer-deps  # Handle dependency conflicts
-
-# Copy the rest of the application code
+COPY package*.json .
+RUN npm install
 COPY . .
+RUN npm run build
 
-# Expose the port the app will run on (default React port)
-EXPOSE 3000
-
-# Start the React app in development mode with hot-reloading
-CMD ["npm", "start"]
+FROM nginx:alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80

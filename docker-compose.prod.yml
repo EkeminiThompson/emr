@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - "80:80"
+    networks:
+      - app-network
+    depends_on:
+      - backend
+      - node-backend
+    environment:
+      - REACT_APP_API_URL=/api
+      - REACT_APP_NODE_API_URL=/chat
+
+  backend:
+    build:
+      context: ./backend
+    container_name: renewal_ridge_fastapi
+    restart: always
+    env_file:
+      - .env.prod
+    environment:
+      DATABASE_URL: ${AZURE_POSTGRES_CONNECTION_STRING}
+      SECRET_KEY: ${SECRET_KEY}
+      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      ALGORITHM: ${ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks:
+      - app-network
+    command: ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--workers", "4", "main:app"]
+
+  node-backend:
+    build:
+      context: ./node-backend
+    restart: always
+    env_file:
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${AZURE_POSTGRES_CONNECTION_STRING}
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

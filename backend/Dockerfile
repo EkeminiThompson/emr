@@ -1,25 +1,17 @@
-# Use official Python image
-FROM python:3.10-slim
+FROM python:3.10-slim as builder
 
-# Set working directory inside the container
 WORKDIR /app
+RUN apt-get update && apt-get install -y gcc libpq-dev python3-dev
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Install necessary system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*  # Clean up to reduce image size
-
-# Copy the requirements.txt and install dependencies
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application code
+FROM python:3.10-slim
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
 COPY . .
 
-# Expose the port that FastAPI will run on
-EXPOSE 8000
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONPATH=/app
 
-# Use --reload to enable auto-reload
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Gunicorn config
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--workers", "4", "main:app"]
