@@ -19,7 +19,7 @@ logging.basicConfig(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Allows React frontend at this URL
+    allow_origins=["https://emr-5esm.vercel.app"],  # Allows React frontend on Vercel
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],  # Allows all headers
