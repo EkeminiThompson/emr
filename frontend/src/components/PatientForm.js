@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from '../api/axiosInstance'; // Using the centralized axios instance
+import axios from '../api/axiosInstance'; // Import the configured axios instance
 import {
   TextField,
   Button,
@@ -21,10 +21,6 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { parseISO } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-
-// Constants
-const API_BASE_URL = '/v1/patients';
-const AUDIT_API_URL = '/v1/audit/audit-logs/';
 
 // Dropdown options
 const GENDER_OPTIONS = [
@@ -149,7 +145,6 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
     verifyTokenAndFetchData();
   }, [patientId]);
 
-  // Centralized logout function
   const handleLogout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('roles');
@@ -160,9 +155,8 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
   const fetchPatient = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/${patientId}`);
+      const response = await axios.get(`/v1/patients/${patientId}`);
       
-      // Ensure date fields are properly formatted
       const patientData = response.data;
       if (patientData.date_of_birth) {
         patientData.date_of_birth = parseISO(patientData.date_of_birth);
@@ -178,7 +172,7 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
 
   const logAuditAction = async (action, entityId, description) => {
     try {
-      await axios.post(AUDIT_API_URL, {
+      await axios.post('/v1/audit/audit-logs/', {
         action,
         entity_type: 'Patient',
         entity_id: entityId,
@@ -197,12 +191,9 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
   const handleDateChange = (date, name) => {
     let dateString = '';
     if (date) {
-      // If date is already a Date object, use it directly
       if (date instanceof Date) {
         dateString = date.toISOString().split('T')[0];
-      } 
-      // If it's a string, parse it first
-      else if (typeof date === 'string') {
+      } else if (typeof date === 'string') {
         dateString = parseISO(date).toISOString().split('T')[0];
       }
     }
@@ -240,7 +231,7 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
     try {
       let response;
       if (patientId) {
-        response = await axios.put(`${API_BASE_URL}/${patientId}`, patient);
+        response = await axios.put(`/v1/patients/${patientId}`, patient);
         setMessage('Patient updated successfully!');
         await logAuditAction(
           'patient_update', 
@@ -248,7 +239,7 @@ const PatientForm = ({ patientId, onSave, setIsLoggedIn }) => {
           `Updated patient record for ${patient.surname}, ${patient.other_names}`
         );
       } else {
-        response = await axios.post(`${API_BASE_URL}/`, patient);
+        response = await axios.post('/v1/patients/', patient);
         setMessage('Patient created successfully!');
         await logAuditAction(
           'patient_create',
