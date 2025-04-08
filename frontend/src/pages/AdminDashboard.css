@@ -1,0 +1,38 @@
+/* global.css */
+.app-container {
+  display: flex;
+  height: 100vh;
+}
+
+nav {
+  width: 250px;
+  background-color: #f4f4f4;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  padding: 20px;
+}
+
+.main-content-wrapper {
+  margin-left: 250px; /* Leave space for the sidebar */
+  padding: 20px;
+  width: 100%;
+  overflow: auto;
+}
+
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: 300px;
+}
+
+.notification {
+  background-color: #f44336;
+  color: white;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+}

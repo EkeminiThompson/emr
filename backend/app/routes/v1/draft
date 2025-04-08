@@ -1,0 +1,1220 @@
+# Define the password context for password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Many-to-Many Association Table for User and Roles (Allowing multiple roles for each user)
+user_role_association = Table(
+    'user_role_association', Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id', ondelete="CASCADE"), primary_key=True),
+    Column('role_id', Integer, ForeignKey('roles.id', ondelete="CASCADE"), primary_key=True)
+)
+
+# 1. Role Model
+
+
+
+# 2. User Model
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(100), unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    full_name = Column(String(255), nullable=True)
+    email = Column(String(255), unique=True, nullable=True)
+
+    # Many-to-many relationship with roles
+    roles = relationship("Role", secondary=user_role_association, back_populates="users")
+
+    # Relationships to other entities
+    patient = relationship("Patient", back_populates="user", uselist=False)
+    staff = relationship("Staff", back_populates="user", uselist=False)
+    doctor = relationship("Doctor", back_populates="user", uselist=False)
+
+    def set_password(self, password: str):
+        """Hash the password before saving it."""
+        self.password_hash = pwd_context.hash(password)
+
+    def verify_password(self, password: str):
+        """Verify the given password against the stored hash."""
+        return pwd_context.verify(password, self.password_hash)
+
+    def __repr__(self):
+        return f"User(username={self.username}, full_name={self.full_name})"
+
+
+# 3. Doctor Model
+class Doctor(Base):
+    __tablename__ = 'doctors'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(100), unique=True, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    specialty = Column(String(100), nullable=True)
+
+    # Relationship to User (Doctor belongs to one User)
+    user = relationship("User", back_populates="doctor")
+    
+    # Relationship to Patients (One Doctor can have many Patients)
+    patients = relationship("Patient", back_populates="doctor")
+
+    # Relationship to Billing (One Doctor can have many Billing records)
+    billings = relationship("Billing", back_populates="doctor")
+
+    def assign_admin_role(self):
+        """Assign the doctor and admin role to the user associated with the doctor."""
+        doctor_role = Role(name="Doctor", description="Special role for doctors.")
+        admin_role = Role(name="Admin", description="Admin role with higher privileges.")
+        self.user.roles = [doctor_role, admin_role]  # Assign both roles to the user
+
+    def __repr__(self):
+        return f"Doctor(name={self.full_name}, specialty={self.specialty})"
+
+
+# 4. Staff Model
+class Staff(Base):
+    __tablename__ = 'staff'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # user_id is nullable here
+    department = Column(String(100), nullable=True)
+
+    # Relationship to User (Staff belongs to one User)
+    user = relationship("User", back_populates="staff")
+
+    def __repr__(self):
+        return f"Staff(name={self.user.full_name if self.user else 'No User'}, department={self.department})"
+
+
+
+# ------------------------------
+# Drug Management
+# ------------------------------
+
+# Create a Drug and its Stock
+@router.post("/v1/admin/drugs/", response_model=DrugOut)
+def create_drug(drug: DrugCreate, db: Session = Depends(get_db)):
+    try:
+        # Convert is_active from boolean to int before creating the Drug
+        drug_data = drug.dict()
+        if 'is_active' in drug_data:
+            drug_data['is_active'] = 1 if drug_data['is_active'] else 0
+
+        db_drug = Drug(**drug_data)
+        db.add(db_drug)
+        db.commit()
+        db.refresh(db_drug)
+
+        # Initialize stock for the drug (if needed)
+        db_stock = Stock(
+            drug_id=db_drug.id,
+            quantity=0,  # default initial stock quantity
+            last_updated=datetime.utcnow()
+        )
+        db.add(db_stock)
+        db.commit()
+
+        return DrugOut.from_orm(db_drug)
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error creating drug: {str(e)}")
+
+
+# Get all Drugs with Total Stock Information
+@router.get("/v1/admin/drugs/", response_model=List[DrugOut])
+def get_drugs(db: Session = Depends(get_db)):
+    try:
+        # Fetch drugs and their total stock in one optimized query
+        drugs = (
+            db.query(
+                Drug,
+                func.coalesce(func.sum(Stock.quantity), 0).label("total_stock")  # Calculate total stock
+            )
+            .outerjoin(Stock, Drug.id == Stock.drug_id)  # Join with Stock table
+            .group_by(Drug.id)
+            .all()
+        )
+
+        # Format results properly
+        drugs_with_stock = [
+            DrugOut(
+                id=drug.id,
+                name=drug.name,
+                description=drug.description,
+                dosage=drug.dosage,
+                instructions=drug.instructions,
+                prescribed_date=drug.prescribed_date,
+                price=drug.price,
+                is_active=bool(drug.is_active),
+                expiration_date=drug.expiration_date,
+                total_stock=total_stock  # Computed dynamically
+            )
+            for drug, total_stock in drugs
+        ]
+
+        return drugs_with_stock
+
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+# Update Drug and Stock
+@router.put("/v1/admin/drugs/{drug_id}", response_model=DrugOut)
+def update_drug(drug_id: int, drug: DrugUpdate, db: Session = Depends(get_db)):
+    try:
+        db_drug = db.query(Drug).filter(Drug.id == drug_id).first()
+        if not db_drug:
+            raise HTTPException(status_code=404, detail="Drug not found")
+        for key, value in drug.dict(exclude_unset=True).items():
+            setattr(db_drug, key, value)
+        db.commit()
+        db.refresh(db_drug)
+        return DrugOut.from_orm(db_drug)
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error updating drug: {str(e)}")
+
+
+# Delete a Drug (Stock is automatically deleted due to CASCADE)
+@router.delete("/v1/admin/drugs/{drug_id}", status_code=204)
+def delete_drug(drug_id: int, db: Session = Depends(get_db)):
+    try:
+        db_drug = db.query(Drug).filter(Drug.id == drug_id).first()
+        if not db_drug:
+            raise HTTPException(status_code=404, detail="Drug not found")
+        db.delete(db_drug)
+        db.commit()
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error deleting drug: {str(e)}")
+
+
+# New Endpoint: Update Stock Levels for a Drug
+@router.patch("/v1/admin/drugs/{drug_id}/stock", response_model=StockResponse)
+def update_stock(drug_id: int, stock_update: StockUpdate, db: Session = Depends(get_db)):
+    try:
+        # Retrieve the existing stock record for the given drug
+        db_stock = db.query(Stock).filter(Stock.drug_id == drug_id).first()
+        
+        if not db_stock:
+            raise HTTPException(status_code=404, detail="Stock not found for given drug")
+
+        # If the stock_update contains a quantity, increment the current stock quantity by the new quantity
+        if stock_update.quantity:
+            db_stock.quantity += stock_update.quantity  # Increment the stock
+
+        # Update the last_updated field to current time
+        db_stock.last_updated = datetime.utcnow()
+
+        # Commit changes to the database
+        db.commit()
+        db.refresh(db_stock)
+
+        return db_stock  # StockResponse will use orm_mode to serialize the object
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error updating stock: {str(e)}")
+
+
+# Sell Drug
+@router.patch("/v1/admin/drugs/{drug_id}/sell", response_model=StockResponse)
+def sell_drug(drug_id: int, stock_update: StockUpdate, db: Session = Depends(get_db)):
+    try:
+        # Retrieve the existing stock record for the given drug
+        db_stock = db.query(Stock).filter(Stock.drug_id == drug_id).first()
+        
+        if not db_stock:
+            raise HTTPException(status_code=404, detail="Stock not found for given drug")
+        
+        # Check if there is enough stock to sell
+        if db_stock.quantity < stock_update.quantity:
+            raise HTTPException(status_code=400, detail="Not enough stock to sell")
+        
+        # Decrease the stock by the quantity sold
+        db_stock.quantity -= stock_update.quantity
+
+        # Update the last_updated field to current time
+        db_stock.last_updated = datetime.utcnow()
+
+        # Commit changes to the database
+        db.commit()
+        db.refresh(db_stock)
+
+        return db_stock  # Return the updated stock
+
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error selling drug: {str(e)}")
+
+
+
+billgenerate
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import {
+  TextField, Button, Container, Typography, Grid, Paper, List, ListItem, 
+  ListItemText, Snackbar, Alert, Dialog, DialogActions, DialogContent, 
+  DialogTitle, FormControl, InputLabel, Select, MenuItem, Box, IconButton,
+  CircularProgress, Table, TableBody, TableCell, TableContainer, 
+  TableHead, TableRow, Tabs, Tab
+} from '@mui/material';
+import { AddCircleOutline, RemoveCircleOutline, Receipt, Paid, Delete, Edit } from '@mui/icons-material';
+import { FeeTypeEnum } from './enums';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+
+// Constants for better maintainability
+const API_BASE_URL = '/v1/billing/v1';
+const DOCTORS_API_URL = '/v1/admin/doctors/';
+const SNACKBAR_AUTO_HIDE_DURATION = 6000;
+
+// Utility function for API error handling
+const handleApiError = (error, setError) => {
+  console.error('API Error:', error);
+  setError(error.response?.data?.message || "An error occurred");
+  return null;
+};
+
+// Revenue Report Component
+const RevenueReport = ({ revenueData, loading, timeFrame, setTimeFrame, 
+  startDate, setStartDate, endDate, setEndDate, doctorId, setDoctorId, 
+  doctors, fetchRevenue }) => {
+  return (
+    <Paper sx={{ padding: 3, mb: 3 }}>
+      <Typography variant="h5" gutterBottom>Revenue by Doctor</Typography>
+      
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs 
+          value={timeFrame} 
+          onChange={(e, newValue) => setTimeFrame(newValue)}
+          aria-label="time frame tabs"
+        >
+          <Tab label="Today" value="day" />
+          <Tab label="This Week" value="week" />
+          <Tab label="This Month" value="month" />
+          <Tab label="This Year" value="year" />
+          <Tab label="All Time" value="total" />
+          <Tab label="Custom Range" value="custom" />
+        </Tabs>
+      </Box>
+
+      {timeFrame === 'custom' && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6}>
+            <DatePicker
+              selected={startDate}
+              onChange={date => setStartDate(date)}
+              selectsStart
+              startDate={startDate}
+              endDate={endDate}
+              placeholderText="Start Date"
+              className="date-picker-input"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <DatePicker
+              selected={endDate}
+              onChange={date => setEndDate(date)}
+              selectsEnd
+              startDate={startDate}
+              endDate={endDate}
+              minDate={startDate}
+              placeholderText="End Date"
+              className="date-picker-input"
+            />
+          </Grid>
+        </Grid>
+      )}
+
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth>
+            <InputLabel>Filter by Doctor</InputLabel>
+            <Select
+              value={doctorId || ''}
+              onChange={e => setDoctorId(e.target.value)}
+              label="Filter by Doctor"
+            >
+              <MenuItem value="">All Doctors</MenuItem>
+              {doctors.map(doctor => (
+                <MenuItem key={doctor.id} value={doctor.id}>
+                  {doctor.full_name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} sm={6} sx={{ display: 'flex', alignItems: 'center' }}>
+          <Button 
+            variant="contained" 
+            onClick={fetchRevenue}
+            disabled={loading}
+            sx={{ height: '56px' }}
+          >
+            Generate Report
+            {loading && <CircularProgress size={24} sx={{ ml: 1 }} />}
+          </Button>
+        </Grid>
+      </Grid>
+
+      {revenueData.length > 0 ? (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Doctor</TableCell>
+                <TableCell align="right">Revenue</TableCell>
+                <TableCell align="right">Number of Billings</TableCell>
+                <TableCell align="right">Average per Billing</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {revenueData.map((row) => (
+                <TableRow key={row.doctor_id}>
+                  <TableCell component="th" scope="row">
+                    {row.doctor_name}
+                  </TableCell>
+                  <TableCell align="right">₦{row.total_revenue.toLocaleString()}</TableCell>
+                  <TableCell align="right">{row.billing_count}</TableCell>
+                  <TableCell align="right">
+                    ₦{(row.total_revenue / row.billing_count).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell><strong>Total</strong></TableCell>
+                <TableCell align="right">
+                  <strong>
+                    ₦{revenueData.reduce((sum, row) => sum + row.total_revenue, 0).toLocaleString()}
+                  </strong>
+                </TableCell>
+                <TableCell align="right">
+                  <strong>
+                    {revenueData.reduce((sum, row) => sum + row.billing_count, 0)}
+                  </strong>
+                </TableCell>
+                <TableCell align="right">
+                  <strong>
+                    ₦{(revenueData.reduce((sum, row) => sum + row.total_revenue, 0) / 
+                       revenueData.reduce((sum, row) => sum + row.billing_count, 1))
+                       .toLocaleString(undefined, {
+                         minimumFractionDigits: 2,
+                         maximumFractionDigits: 2
+                       })}
+                  </strong>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Typography variant="body1" sx={{ textAlign: 'center', p: 3 }}>
+          No revenue data found for the selected criteria
+        </Typography>
+      )}
+    </Paper>
+  );
+};
+
+
+// Search Component
+const BillSearch = React.memo(({ 
+  searchData, 
+  handleSearchChange, 
+  searchPatients, 
+  patients = [], 
+  error, 
+  handlePatientSelect,
+  loading 
+}) => (
+  <Paper sx={{ padding: 3, mb: 3 }}>
+    <Typography variant="h5" gutterBottom>Search Patients</Typography>
+    <Grid container spacing={2}>
+      {['patient_id', 'surname', 'other_names', 'hospital_reg_number'].map((field) => (
+        <Grid item xs={12} sm={6} key={field}>
+          <TextField
+            fullWidth
+            label={field.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}
+            name={field}
+            value={searchData[field]}
+            onChange={handleSearchChange}
+          />
+        </Grid>
+      ))}
+    </Grid>
+    <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+      <Button 
+        variant="contained" 
+        color="primary" 
+        onClick={searchPatients}
+        disabled={loading}
+      >
+        Search
+        {loading && <CircularProgress size={24} sx={{ ml: 1 }} />}
+      </Button>
+    </Box>
+
+    {patients.length > 0 && (
+      <Paper sx={{ mt: 3, p: 2 }}>
+        <Typography variant="h5" gutterBottom>Search Results</Typography>
+        <List>
+          {patients.map((patient) => (
+            <ListItem key={patient.patient_id} divider>
+              <ListItemText
+                primary={`${patient.surname}, ${patient.other_names}`}
+                secondary={`ID: ${patient.patient_id} | Reg: ${patient.hospital_reg_number}`}
+              />
+              <Button 
+                variant="outlined" 
+                onClick={() => handlePatientSelect(patient)}
+                disabled={loading}
+              >
+                View Billing History
+              </Button>
+            </ListItem>
+          ))}
+        </List>
+      </Paper>
+    )}
+    {error && (
+      <Alert severity="error" sx={{ mt: 2 }}>
+        {error}
+      </Alert>
+    )}
+  </Paper>
+));
+
+// Billing History Component
+const BillingHistory = React.memo(({ 
+  billings, 
+  handleDeleteBilling, 
+  handleEditBilling, 
+  handleMarkAsPaid, 
+  handleDownloadReceipt,
+  loading 
+}) => {
+  if (billings.length === 0) return null;
+
+  return (
+    <Paper sx={{ mt: 3, p: 2 }}>
+      <Typography variant="h5" gutterBottom>Billing History</Typography>
+      <List>
+        {billings.map((billing) => (
+          <ListItem key={billing.billing_id} divider>
+            <ListItemText
+              primary={`Invoice #${billing.invoice_number} - ₦${billing.total_bill}`}
+              secondary={`Doctor: ${billing.doctor_id} | Status: ${billing.status} | Date: ${new Date(billing.invoice_date).toLocaleDateString()}`}
+            />
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {billing.status === "Unpaid" && (
+                <Button 
+                  variant="outlined" 
+                  startIcon={<Paid />}
+                  onClick={() => handleMarkAsPaid(billing.billing_id)}
+                  disabled={loading}
+                >
+                  Mark Paid
+                </Button>
+              )}
+              {billing.status === "Paid" && (
+                <Button 
+                  variant="outlined" 
+                  startIcon={<Receipt />}
+                  onClick={() => handleDownloadReceipt(billing.billing_id)}
+                  disabled={loading}
+                >
+                  Receipt
+                </Button>
+              )}
+              <Button 
+                variant="outlined" 
+                startIcon={<Edit />}
+                onClick={() => handleEditBilling(billing)}
+                disabled={loading || billing.status === "Paid"}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<Delete />}
+                onClick={() => handleDeleteBilling(billing.billing_id)}
+                disabled={loading}
+              >
+                Delete
+              </Button>
+            </Box>
+          </ListItem>
+        ))}
+      </List>
+    </Paper>
+  );
+});
+
+// Fee Item Component
+const FeeItem = ({ fee, index, handleFeeChange, handleRemoveFee }) => (
+  <Grid container spacing={2} sx={{ mb: 2 }}>
+    <Grid item xs={5}>
+      <FormControl fullWidth>
+        <InputLabel>Fee Type</InputLabel>
+        <Select
+          name="fee_type"
+          value={fee.fee_type}
+          onChange={(e) => handleFeeChange(index, e)}
+          label="Fee Type"
+        >
+          {Object.entries(FeeTypeEnum).map(([key, value]) => (
+            <MenuItem key={key} value={value}>
+              {value}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </Grid>
+    <Grid item xs={5}>
+      <TextField
+        fullWidth
+        label="Amount"
+        name="amount"
+        type="number"
+        value={fee.amount}
+        onChange={(e) => handleFeeChange(index, e)}
+        inputProps={{ min: 0, step: 0.01 }}
+      />
+    </Grid>
+    <Grid item xs={2} sx={{ display: 'flex', alignItems: 'center' }}>
+      <IconButton color="error" onClick={() => handleRemoveFee(index)}>
+        <RemoveCircleOutline />
+      </IconButton>
+    </Grid>
+  </Grid>
+);
+
+// Add Billing Component
+const AddBilling = React.memo(({ billingData, setBillingData, addBilling, doctors, loading }) => {
+  const calculateTotalFees = useCallback(() => {
+    const totalFees = billingData.fees.reduce((sum, fee) => sum + parseFloat(fee.amount || 0), 0);
+    const discountPercentage = parseFloat(billingData.discount_percentage || 0);
+    const discountAmount = parseFloat(billingData.discount_amount || 0);
+    const discountBasedOnPercentage = totalFees * (discountPercentage / 100);
+    const totalDiscount = Math.max(discountBasedOnPercentage, discountAmount);
+    return totalFees - totalDiscount;
+  }, [billingData.fees, billingData.discount_percentage, billingData.discount_amount]);
+
+  const handleAddFee = () => {
+    setBillingData(prev => ({
+      ...prev,
+      fees: [...prev.fees, { fee_type: '', amount: '', billing_id: 0 }],
+    }));
+  };
+
+  const handleFeeChange = (index, e) => {
+    const { name, value } = e.target;
+    setBillingData(prev => ({
+      ...prev,
+      fees: prev.fees.map((fee, i) => (i === index ? { ...fee, [name]: value } : fee)),
+    }));
+  };
+
+  const handleRemoveFee = (index) => {
+    setBillingData(prev => ({
+      ...prev,
+      fees: prev.fees.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleDoctorChange = (e) => {
+    setBillingData(prev => ({ ...prev, doctor_id: e.target.value }));
+  };
+
+  const handleSubmit = () => {
+    const billData = {
+      ...billingData,
+      invoice_status: "not_generated",
+      invoice_date: new Date().toISOString(),
+      total_bill: parseFloat(billingData.total_bill),
+      discount_percentage: parseFloat(billingData.discount_percentage || 0),
+      discount_amount: parseFloat(billingData.discount_amount || 0),
+      doctor_id: parseInt(billingData.doctor_id, 10),
+      fees: billingData.fees.map(fee => ({
+        ...fee,
+        amount: parseFloat(fee.amount || 0),
+      })),
+    };
+    addBilling(billData);
+  };
+
+  useEffect(() => {
+    const totalBill = calculateTotalFees();
+    setBillingData(prev => ({ ...prev, total_bill: totalBill.toFixed(2) }));
+  }, [calculateTotalFees, setBillingData]);
+
+  return (
+    <Paper sx={{ mt: 3, p: 2 }}>
+      <Typography variant="h5" gutterBottom>Create New Billing</Typography>
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Patient ID"
+            value={billingData.patient_id}
+            disabled
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth>
+            <InputLabel>Doctor</InputLabel>
+            <Select
+              label="Doctor"
+              value={billingData.doctor_id || ''}
+              onChange={handleDoctorChange}
+            >
+              {doctors.map((doctor) => (
+                <MenuItem key={doctor.id} value={doctor.id}>
+                  {doctor.full_name} ({doctor.specialty})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Total Bill"
+            value={billingData.total_bill}
+            disabled
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Discount Percentage"
+            name="discount_percentage"
+            type="number"
+            value={billingData.discount_percentage}
+            onChange={(e) => setBillingData(prev => ({ ...prev, discount_percentage: e.target.value }))}
+            inputProps={{ min: 0, max: 100, step: 1 }}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Discount Amount"
+            name="discount_amount"
+            type="number"
+            value={billingData.discount_amount}
+            onChange={(e) => setBillingData(prev => ({ ...prev, discount_amount: e.target.value }))}
+            inputProps={{ min: 0, step: 0.01 }}
+          />
+        </Grid>
+      </Grid>
+
+      <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>Fees</Typography>
+      {billingData.fees.map((fee, index) => (
+        <FeeItem 
+          key={index} 
+          fee={fee} 
+          index={index} 
+          handleFeeChange={handleFeeChange} 
+          handleRemoveFee={handleRemoveFee} 
+        />
+      ))}
+      
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+        <Button 
+          variant="outlined" 
+          startIcon={<AddCircleOutline />} 
+          onClick={handleAddFee}
+        >
+          Add Fee
+        </Button>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={handleSubmit}
+          disabled={loading || !billingData.doctor_id || billingData.fees.length === 0}
+        >
+          Create Billing
+          {loading && <CircularProgress size={24} sx={{ ml: 1 }} />}
+        </Button>
+      </Box>
+    </Paper>
+  );
+});
+
+// Edit Billing Dialog Component
+const EditBillingDialog = React.memo(({ 
+  open, 
+  onClose, 
+  billing, 
+  setBilling, 
+  handleUpdateBilling, 
+  doctors,
+  loading 
+}) => {
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setBilling(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleDoctorChange = (e) => {
+    setBilling(prev => ({ ...prev, doctor_id: e.target.value }));
+  };
+
+  const handleFeeChange = (index, e) => {
+    const { name, value } = e.target;
+    setBilling(prev => ({
+      ...prev,
+      fees: prev.fees.map((fee, i) => (i === index ? { ...fee, [name]: value } : fee)),
+    }));
+  };
+
+  const handleAddFee = () => {
+    setBilling(prev => ({
+      ...prev,
+      fees: [...prev.fees, { fee_type: '', amount: '' }],
+    }));
+  };
+
+  const handleRemoveFee = (index) => {
+    setBilling(prev => ({
+      ...prev,
+      fees: prev.fees.filter((_, i) => i !== index),
+    }));
+  };
+
+  if (!billing) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>Edit Billing Record</DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Doctor</InputLabel>
+              <Select
+                label="Doctor"
+                value={billing.doctor_id || ''}
+                onChange={handleDoctorChange}
+              >
+                {doctors.map((doctor) => (
+                  <MenuItem key={doctor.id} value={doctor.id}>
+                    {doctor.full_name} ({doctor.specialty})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Total Bill"
+              name="total_bill"
+              type="number"
+              value={billing.total_bill || ''}
+              onChange={handleChange}
+              inputProps={{ min: 0, step: 0.01 }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Discount Percentage"
+              name="discount_percentage"
+              type="number"
+              value={billing.discount_percentage || ''}
+              onChange={handleChange}
+              inputProps={{ min: 0, max: 100, step: 1 }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Discount Amount"
+              name="discount_amount"
+              type="number"
+              value={billing.discount_amount || ''}
+              onChange={handleChange}
+              inputProps={{ min: 0, step: 0.01 }}
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Fees</Typography>
+            {billing.fees?.map((fee, index) => (
+              <FeeItem 
+                key={index} 
+                fee={fee} 
+                index={index} 
+                handleFeeChange={handleFeeChange} 
+                handleRemoveFee={handleRemoveFee} 
+              />
+            ))}
+            <Button 
+              variant="outlined" 
+              startIcon={<AddCircleOutline />} 
+              onClick={handleAddFee}
+              sx={{ mt: 1 }}
+            >
+              Add Fee
+            </Button>
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} color="secondary" disabled={loading}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleUpdateBilling} 
+          color="primary"
+          disabled={loading || !billing.doctor_id || billing.fees.length === 0}
+        >
+          Update
+          {loading && <CircularProgress size={24} sx={{ ml: 1 }} />}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+});
+
+// Main Component
+function BillGeneration() {
+  const [searchData, setSearchData] = useState({
+    patient_id: '',
+    surname: '',
+    other_names: '',
+    hospital_reg_number: ''
+  });
+
+  const [billingData, setBillingData] = useState({
+    patient_id: '',
+    doctor_id: '',
+    total_bill: '',
+    discount_percentage: '0',
+    discount_amount: '0',
+    fees: []
+  });
+
+  const [patients, setPatients] = useState([]);
+  const [billings, setBillings] = useState([]);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [billingToEdit, setBillingToEdit] = useState(null);
+  const [doctors, setDoctors] = useState([]);
+  
+  // Revenue report state
+  const [revenueData, setRevenueData] = useState([]);
+  const [timeFrame, setTimeFrame] = useState('month');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [doctorId, setDoctorId] = useState('');
+  const [activeTab, setActiveTab] = useState('billing'); // 'billing' or 'reports'
+
+  // Fetch doctors on component mount
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const response = await axios.get(DOCTORS_API_URL);
+        setDoctors(response.data);
+      } catch (error) {
+        handleApiError(error, setError);
+      }
+    };
+    fetchDoctors();
+  }, []);
+
+  // Fetch initial revenue data
+  useEffect(() => {
+    fetchRevenue();
+  }, []);
+
+  const fetchRevenue = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        time_frame: timeFrame === 'custom' ? null : timeFrame,
+        start_date: timeFrame === 'custom' && startDate ? startDate.toISOString().split('T')[0] : null,
+        end_date: timeFrame === 'custom' && endDate ? endDate.toISOString().split('T')[0] : null,
+        doctor_id: doctorId || null
+      };
+
+      // Remove null parameters
+      Object.keys(params).forEach(key => params[key] === null && delete params[key]);
+
+      const response = await axios.get(`${API_BASE_URL}/billings/revenue-by-user`, { params });
+      setRevenueData(response.data);
+      setError(null);
+    } catch (error) {
+      handleApiError(error, setError);
+      setRevenueData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const searchPatients = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/patients/`, {
+        params: searchData,
+      });
+      setPatients(response.data.patients || []);
+      setError(null);
+    } catch (error) {
+      handleApiError(error, setError);
+      setPatients([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    const { name, value } = e.target;
+    setSearchData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePatientSelect = async (patient) => {
+    setLoading(true);
+    setSelectedPatient(patient);
+    setBillingData(prev => ({ 
+      ...prev, 
+      patient_id: patient.patient_id,
+      fees: [] 
+    }));
+    
+    try {
+      const response = await axios.get(`${API_BASE_URL}/patients/${patient.patient_id}/billings`);
+      setBillings(response.data || []);
+      setError(null);
+    } catch (error) {
+      handleApiError(error, setError);
+      setBillings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addBilling = async (billData) => {
+    setLoading(true);
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/patients/${billData.patient_id}/billings`, 
+        billData
+      );
+      setBillings(prev => [...prev, response.data]);
+      setMessage("Billing created successfully.");
+      setBillingData(prev => ({ ...prev, fees: [] }));
+      // Refresh revenue data after new billing
+      fetchRevenue();
+    } catch (error) {
+      handleApiError(error, setError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBilling = async (billing_id) => {
+    setLoading(true);
+    try {
+      await axios.delete(
+        `${API_BASE_URL}/patients/${selectedPatient.patient_id}/billings/${billing_id}`
+      );
+      setBillings(prev => prev.filter(b => b.billing_id !== billing_id));
+      setMessage("Billing deleted successfully.");
+      // Refresh revenue data after deletion
+      fetchRevenue();
+    } catch (error) {
+      handleApiError(error, setError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditBilling = (billing) => {
+    setBillingToEdit(billing);
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateBilling = async () => {
+    setLoading(true);
+    try {
+      if (billingToEdit.discount_percentage && billingToEdit.discount_amount) {
+        billingToEdit.discount_amount = null;
+      }
+      
+      const response = await axios.put(
+        `${API_BASE_URL}/patients/${billingToEdit.patient_id}/billings/${billingToEdit.billing_id}`,
+        billingToEdit
+      );
+      
+      setBillings(prev => prev.map(b => 
+        b.billing_id === billingToEdit.billing_id ? response.data : b
+      ));
+      setMessage("Billing updated successfully.");
+      setEditDialogOpen(false);
+      // Refresh revenue data after update
+      fetchRevenue();
+    } catch (error) {
+      handleApiError(error, setError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAsPaid = async (billing_id) => {
+    setLoading(true);
+    try {
+      const response = await axios.patch(
+        `${API_BASE_URL}/patients/${selectedPatient.patient_id}/billings/${billing_id}/mark-as-paid`
+      );
+      setBillings(prev => prev.map(b => 
+        b.billing_id === billing_id ? response.data : b
+      ));
+      setMessage("Billing marked as paid successfully.");
+      // Refresh revenue data after marking as paid
+      fetchRevenue();
+    } catch (error) {
+      handleApiError(error, setError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadReceipt = async (billing_id) => {
+    setLoading(true);
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/patients/${selectedPatient.patient_id}/billings/${billing_id}/download-receipt`,
+        { responseType: 'blob' }
+      );
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `receipt_${billing_id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      setMessage("Receipt downloaded successfully.");
+    } catch (error) {
+      handleApiError(error, setError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={(e, newValue) => setActiveTab(newValue)}
+          aria-label="main tabs"
+        >
+          <Tab label="Billing" value="billing" />
+          <Tab label="Revenue Reports" value="reports" />
+        </Tabs>
+      </Box>
+
+      {activeTab === 'billing' ? (
+        <>
+          <BillSearch
+            searchData={searchData}
+            handleSearchChange={handleSearchChange}
+            searchPatients={searchPatients}
+            patients={patients}
+            error={error}
+            handlePatientSelect={handlePatientSelect}
+            loading={loading}
+          />
+          
+          {selectedPatient && (
+            <>
+              <BillingHistory
+                billings={billings}
+                handleDeleteBilling={handleDeleteBilling}
+                handleEditBilling={handleEditBilling}
+                handleMarkAsPaid={handleMarkAsPaid}
+                handleDownloadReceipt={handleDownloadReceipt}
+                loading={loading}
+              />
+              
+              <AddBilling
+                billingData={billingData}
+                setBillingData={setBillingData}
+                addBilling={addBilling}
+                doctors={doctors}
+                loading={loading}
+              />
+            </>
+          )}
+        </>
+      ) : (
+        <RevenueReport
+          revenueData={revenueData}
+          loading={loading}
+          timeFrame={timeFrame}
+          setTimeFrame={setTimeFrame}
+          startDate={startDate}
+          setStartDate={setStartDate}
+          endDate={endDate}
+          setEndDate={setEndDate}
+          doctorId={doctorId}
+          setDoctorId={setDoctorId}
+          doctors={doctors}
+          fetchRevenue={fetchRevenue}
+        />
+      )}
+      
+      <Snackbar
+        open={!!message}
+        autoHideDuration={SNACKBAR_AUTO_HIDE_DURATION}
+        onClose={() => setMessage('')}
+      >
+        <Alert severity="success" onClose={() => setMessage('')}>
+          {message}
+        </Alert>
+      </Snackbar>
+      
+      <Snackbar
+        open={!!error}
+        autoHideDuration={SNACKBAR_AUTO_HIDE_DURATION}
+        onClose={() => setError(null)}
+      >
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      </Snackbar>
+      
+      <EditBillingDialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        billing={billingToEdit}
+        setBilling={setBillingToEdit}
+        handleUpdateBilling={handleUpdateBilling}
+        doctors={doctors}
+        loading={loading}
+      />
+    </Container>
+  );
+}
+
+export default BillGeneration;

@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend  # Path to your React app
+    ports:
+      - "3000:3000"  # Expose React app on port 3000 (development)
+    networks:
+      - app-network
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000  # Use backend service name inside Docker
+    #volumes:
+    #  - ./frontend:/app  # Mount local frontend directory to the container for hot reloading
+    command: "npm start --host 0.0.0.0"  # Bind React app to 0.0.0.0 to allow external access
+    depends_on:
+      - backend  # Ensure backend is started before frontend
+
+  node-backend:
+    build:
+      context: ./node-backend  # Path to your Node.js app
+    ports:
+      - "5000:5000"  # Expose the Node.js server on port 5000
+    networks:
+      - app-network
+    depends_on:
+      - frontend  # Ensure frontend is started before node-backend
+    #volumes:
+    #  - ./node-backend:/usr/src/app  # Mount local backend directory to the container
+    #command: "npm start"  # Use npm start to run the app
+
+  backend:
+    build:
+      context: ./backend  # Path to your FastAPI app
+    container_name: renewal_ridge_fastapi
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy  # Ensure database is healthy before starting backend
+    env_file:
+      - .env  # Loading environment variables from .env file
+    environment:
+      DATABASE_URL: postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}
+      SECRET_KEY: ${SECRET_KEY}
+      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      ALGORITHM: ${ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      LOG_LEVEL: ${LOG_LEVEL}
+    ports:
+      - "8000:8000"  # Expose FastAPI on port 8000
+    networks:
+      - app-network
+    volumes:
+      - ./backend:/app  # Ensure code changes reflect inside the container
+
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]  # --reload enables live reloading
+
+  db:
+    image: postgres:15
+    container_name: renewal_ridge_db
+    restart: always
+    env_file:
+      - .env  # Loading environment variables for the DB connection
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - "${DATABASE_PORT}:5432"  # Bind PostgreSQL to the appropriate port
+    volumes:
+      - pg_data:/var/lib/postgresql/data  # Persist database data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app-network:
+    driver: bridge  # Creating a custom network for inter-container communication
+
+volumes:
+  pg_data:  # Persistent storage for PostgreSQL data
