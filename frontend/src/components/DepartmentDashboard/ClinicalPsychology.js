@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import axios from '../../api/axiosInstance'; // Import the configured axios instance
 import { useNavigate } from 'react-router-dom';
 import {
   TextField, Button, Container, Typography, Grid, Paper, Alert,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import axios from '../../api/axiosInstance';
 import { useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -34,7 +34,6 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { useReactToPrint } from 'react-to-print';
 
 // Constants
-const API_BASE_URL = '/v1/laboratory';
 const LABORATORY_FIELDS = [
   'tests_requested_by_physicians',
   'urgency',
@@ -455,7 +454,7 @@ function Laboratory() {
     
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/${patient_id}/laboratory`);
+      const response = await axios.get(`/v1/laboratory/${patient_id}/laboratory`);
       setRecords(response.data || []);
       setError(null);
     } catch (err) {
@@ -470,7 +469,7 @@ function Laboratory() {
   const searchPatients = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/`, {
+      const response = await axios.get(`/v1/laboratory/`, {
         params: searchData
       });
       setPatients(response.data.patients || []);
@@ -503,7 +502,7 @@ function Laboratory() {
     setLoading(true);
     try {
       await axios.post(
-        `${API_BASE_URL}/${laboratoryData.patient_id}/laboratory`,
+        `/v1/laboratory/${laboratoryData.patient_id}/laboratory`,
         laboratoryData
       );
       setMessage("Record added successfully");
@@ -530,7 +529,7 @@ function Laboratory() {
     setLoading(true);
     try {
       await axios.put(
-        `${API_BASE_URL}/${editRecord.patient_id}/laboratory/${editRecord.id}`,
+        `/v1/laboratory/${editRecord.patient_id}/laboratory/${editRecord.id}`,
         editRecord
       );
       setMessage("Record updated successfully");
@@ -555,7 +554,7 @@ function Laboratory() {
     setDeleteLoading(true);
     try {
       await axios.delete(
-        `${API_BASE_URL}/${selectedPatient.patient_id}/laboratory/${recordToDelete}`
+        `/v1/laboratory/${selectedPatient.patient_id}/laboratory/${recordToDelete}`
       );
       setMessage("Record deleted successfully");
       fetchRecords(selectedPatient.patient_id);
@@ -582,7 +581,7 @@ function Laboratory() {
 
       // Trigger download
       const response = await axios.get(
-        `${API_BASE_URL}/${selectedPatient.patient_id}/laboratory/${recordId}/download`,
+        `/v1/laboratory/${selectedPatient.patient_id}/laboratory/${recordId}/download`,
         {
           responseType: 'blob', // Important for file downloads
           params: { format }
