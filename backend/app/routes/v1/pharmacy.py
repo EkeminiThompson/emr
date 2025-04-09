@@ -421,7 +421,7 @@ def mark_pharmacy_record_as_paid(
     return record
 
 # 8. Download Receipt (Updated with better formatting and drug name)
-def generate_receipt_pdf(record, patient, db: Session, logo_url="http://localhost:3000/renewal.png"):
+def generate_receipt_pdf(record, patient, db: Session, logo_url="https://emr-5esm.vercel.app/renewal.png"):
     buffer = BytesIO()
     pdf = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()

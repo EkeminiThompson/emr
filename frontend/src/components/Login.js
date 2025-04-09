@@ -16,7 +16,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
 
   // Role-based navigation mapping
   const roleRoutes = {
-    Admin: "/admin",
+    Admin: "/home",
     Doctor: "/mental-health",
     Pharmacy: "/pharmacy",
     Laboratory: "/laboratory",

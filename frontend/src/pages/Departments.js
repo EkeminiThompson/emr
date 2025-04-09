@@ -106,7 +106,7 @@ const Departments = () => {
         <Card>
           <CardTitle>Outpatients</CardTitle>
           <CardText>Coordinate outpatients interventions and data.</CardText>
-          <StyledLink to="/psychology-crud">Go to OutPatient</StyledLink>
+          <StyledLink to="/patient-details">Go to OutPatient</StyledLink>
         </Card>
       </Grid>
     </Container>

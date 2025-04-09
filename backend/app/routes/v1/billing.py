@@ -52,7 +52,7 @@ def paginate(query, page: int, size: int):
     return query.offset((page - 1) * size).limit(size).all()
 
 
-def generate_receipt_pdf(billing, patient, doctor, logo_url="http://localhost:3000/renewal.png"):
+def generate_receipt_pdf(billing, patient, doctor, logo_url="https://emr-5esm.vercel.app/renewal.png"):
     """Generate a PDF receipt for a billing."""
     buffer = BytesIO()
     pdf = SimpleDocTemplate(buffer, pagesize=letter)

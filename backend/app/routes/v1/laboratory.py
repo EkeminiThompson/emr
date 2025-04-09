@@ -4,13 +4,15 @@ from app.models import LaboratoryRecord, Patient
 from app.schemas import LaboratoryCreate, LaboratoryUpdate, LaboratoryOut, PatientSearchResponse
 from app.database import get_db
 from typing import List, Optional
-
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 import json
 import os
 from datetime import datetime
 from reportlab.pdfgen import canvas
 from io import BytesIO
+import requests  # For downloading the image
+from PIL import Image  # For image processing
+from reportlab.lib.utils import ImageReader  # For adding image to PDF
 
 router = APIRouter()
 
@@ -183,29 +185,56 @@ async def download_laboratory_result(
         buffer = BytesIO()
         p = canvas.Canvas(buffer)
         
-        # Add content to PDF
-        p.drawString(100, 800, f"Laboratory Report for {patient.surname}, {patient.other_names}")
-        p.drawString(100, 780, f"Patient ID: {patient.patient_id}")
-        p.drawString(100, 760, f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        p.drawString(100, 740, "----------------------------------------")
+        # Add image at the top center
+        image_url = "https://emr-5esm.vercel.app/renewal.png"
+        try:
+            # Download the image
+            import requests
+            from PIL import Image
+            from reportlab.lib.utils import ImageReader
+            
+            response = requests.get(image_url)
+            img = Image.open(BytesIO(response.content))
+            img_reader = ImageReader(img)
+            
+            # Calculate center position (assuming A4 page: 595x842 points)
+            img_width, img_height = img.size
+            scale_factor = min(500/img_width, 100/img_height)  # Limit to 500pt width or 100pt height
+            img_width *= scale_factor
+            img_height *= scale_factor
+            x_pos = (595 - img_width) / 2  # Center horizontally
+            
+            # Draw the image
+            p.drawImage(img_reader, x_pos, 750, width=img_width, height=img_height, preserveAspectRatio=True)
+            y_position = 740 - img_height  # Position content below the image
+        except Exception as e:
+            # If image fails to load, just continue without it
+            print(f"Failed to load image: {e}")
+            y_position = 800  # Start at the top if no image
         
-        p.drawString(100, 720, "Tests Requested:")
-        p.drawString(120, 700, record.tests_requested_by_physicians)
+        # Add content to PDF below the image
+        p.drawString(100, y_position, f"Laboratory Report for {patient.surname}, {patient.other_names}")
+        p.drawString(100, y_position - 20, f"Patient ID: {patient.patient_id}")
+        p.drawString(100, y_position - 40, f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        p.drawString(100, y_position - 60, "----------------------------------------")
         
-        p.drawString(100, 680, "Test Results:")
-        p.drawString(120, 660, record.test_results)
+        p.drawString(100, y_position - 80, "Tests Requested:")
+        p.drawString(120, y_position - 100, record.tests_requested_by_physicians)
         
-        p.drawString(100, 640, "Reference Ranges:")
-        p.drawString(120, 620, record.reference_ranges)
+        p.drawString(100, y_position - 120, "Test Results:")
+        p.drawString(120, y_position - 140, record.test_results)
         
-        p.drawString(100, 600, "Pathologist Comments:")
-        p.drawString(120, 580, record.pathologist_comments)
+        p.drawString(100, y_position - 160, "Reference Ranges:")
+        p.drawString(120, y_position - 180, record.reference_ranges)
         
-        p.drawString(100, 560, "Specimen Type:")
-        p.drawString(120, 540, record.specimen_type)
+        p.drawString(100, y_position - 200, "Pathologist Comments:")
+        p.drawString(120, y_position - 220, record.pathologist_comments)
         
-        p.drawString(100, 520, "Collection Date:")
-        p.drawString(120, 500, str(record.date_time_of_collection))
+        p.drawString(100, y_position - 240, "Specimen Type:")
+        p.drawString(120, y_position - 260, record.specimen_type)
+        
+        p.drawString(100, y_position - 280, "Collection Date:")
+        p.drawString(120, y_position - 300, str(record.date_time_of_collection))
         
         p.showPage()
         p.save()
