@@ -94,7 +94,7 @@ const Home = () => {
           <FaUserInjured style={styles.icon} />
           <h2 style={styles.sectionTitle}>Patients</h2>
           <p style={styles.sectionText}>Manage your appointments, track your health records, and more!</p>
-          <Link to="/dashboard" style={styles.link} aria-label="Go to Patient Dashboard">
+          <Link to="/patient-dashboard" style={styles.link} aria-label="Go to Patient Dashboard">
             Go to Patient Dashboard
           </Link>
         </div>

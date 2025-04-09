@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../api/axiosInstance';
 import {
   TextField,
   Button,
@@ -30,11 +30,6 @@ import { Add, Edit, Delete, AddCircle, RemoveCircle } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 
-// Constants
-const API_BASE_URL = '/v1/admin/v1/admin/drugs/';
-const AUDIT_API_URL = '/v1/audit/audit-logs/';
-const SNACKBAR_AUTO_HIDE_DURATION = 6000;
-
 // Initial drug data structure
 const initialDrugData = {
   id: null,
@@ -64,32 +59,6 @@ function DrugsPage({ setIsLoggedIn }) {
   const token = localStorage.getItem('access_token');
   const [roles, setRoles] = useState([]);
 
-  // Initialize axios instance with interceptors
-  const api = axios.create({
-    baseURL: process.env.REACT_APP_API_BASE_URL,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-
-  // Add request interceptor to include token
-  api.interceptors.request.use(config => {
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  }, error => {
-    return Promise.reject(error);
-  });
-
-  // Add response interceptor to handle 401 errors
-  api.interceptors.response.use(response => response, error => {
-    if (error.response?.status === 401) {
-      handleLogout();
-    }
-    return Promise.reject(error);
-  });
-
   // Check if drug is active based on expiration date
   const isDrugActive = (expirationDate) => {
     if (!expirationDate) return true;
@@ -109,7 +78,7 @@ function DrugsPage({ setIsLoggedIn }) {
   // Log audit actions
   const logAuditAction = async (action, entityId, description) => {
     try {
-      await api.post(AUDIT_API_URL, {
+      await axios.post('/v1/audit/audit-logs/', {
         action,
         entity_type: 'Drug',
         entity_id: entityId,
@@ -147,7 +116,7 @@ function DrugsPage({ setIsLoggedIn }) {
         }
 
         setLoading(true);
-        const response = await api.get(API_BASE_URL);
+        const response = await axios.get('/v1/admin/v1/admin/drugs/');
         const drugsWithStatus = response.data.map((drug) => ({
           ...drug,
           stock: drug.total_stock || 0,
@@ -223,7 +192,7 @@ function DrugsPage({ setIsLoggedIn }) {
 
       if (currentDrug.id) {
         // Update existing drug
-        const response = await api.put(`${API_BASE_URL}${currentDrug.id}`, payload);
+        const response = await axios.put(`/v1/admin/v1/admin/drugs/${currentDrug.id}`, payload);
         setDrugs((prev) =>
           prev.map((drug) => (drug.id === currentDrug.id ? { 
             ...response.data, 
@@ -238,7 +207,7 @@ function DrugsPage({ setIsLoggedIn }) {
         );
       } else {
         // Create new drug
-        const response = await api.post(API_BASE_URL, payload);
+        const response = await axios.post('/v1/admin/v1/admin/drugs/', payload);
         const newDrug = { 
           ...response.data, 
           is_active: isDrugActive(response.data.expiration_date) && response.data.is_active 
@@ -266,7 +235,7 @@ function DrugsPage({ setIsLoggedIn }) {
     setActionLoading(true);
     try {
       const drugToDelete = drugs.find(d => d.id === id);
-      await api.delete(`${API_BASE_URL}${id}`);
+      await axios.delete(`/v1/admin/v1/admin/drugs/${id}`);
       setDrugs((prev) => prev.filter((drug) => drug.id !== id));
       setMessage('Drug deleted successfully');
       await logAuditAction(
@@ -305,8 +274,8 @@ function DrugsPage({ setIsLoggedIn }) {
     setActionLoading(true);
     try {
       const endpoint = action === 'add' ? 'stock' : 'sell';
-      const response = await api.patch(
-        `${API_BASE_URL}${drugId}/${endpoint}`,
+      const response = await axios.patch(
+        `/v1/admin/v1/admin/drugs/${drugId}/${endpoint}`,
         { quantity }
       );
 
@@ -554,7 +523,7 @@ function DrugsPage({ setIsLoggedIn }) {
       {/* Notifications */}
       <Snackbar
         open={!!message}
-        autoHideDuration={SNACKBAR_AUTO_HIDE_DURATION}
+        autoHideDuration={6000}
         onClose={() => setMessage('')}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
@@ -564,7 +533,7 @@ function DrugsPage({ setIsLoggedIn }) {
       </Snackbar>
       <Snackbar
         open={!!error}
-        autoHideDuration={SNACKBAR_AUTO_HIDE_DURATION}
+        autoHideDuration={6000}
         onClose={() => setError('')}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >

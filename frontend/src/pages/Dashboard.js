@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../api/axiosInstance'; 
 import {
   Container, Typography, Paper, Box, Button, CircularProgress,
   FormControl, InputLabel, Select, MenuItem, Table, TableBody,
@@ -9,8 +9,8 @@ import {
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
-const API_BASE_URL = '/v1/billing/v1';
-const DOCTORS_API_URL = '/v1/admin/doctors/';
+//const API_BASE_URL = '/v1/billing/v1';
+//const DOCTORS_API_URL = '/v1/admin/doctors/';
 
 const RevenueReportPage = () => {
   const [revenueData, setRevenueData] = useState([]);
@@ -26,7 +26,7 @@ const RevenueReportPage = () => {
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const response = await axios.get(DOCTORS_API_URL);
+        const response = await axios.get('/v1/admin/doctors/');
         setDoctors(response.data);
       } catch (error) {
         console.error('Error fetching doctors:', error);
@@ -55,7 +55,7 @@ const RevenueReportPage = () => {
       // Remove null parameters
       Object.keys(params).forEach(key => params[key] === null && delete params[key]);
 
-      const response = await axios.get(`${API_BASE_URL}/billings/revenue-by-user`, { params });
+      const response = await axios.get(`/v1/billing/v1/billings/revenue-by-user`, { params });
       setRevenueData(response.data);
     } catch (error) {
       console.error('Error fetching revenue data:', error);

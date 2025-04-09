@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../api/axiosInstance';
 import {
   Container,
   TextField,
@@ -19,8 +19,8 @@ import {
   Paper,
 } from '@mui/material';
 
-// Base URL for API (adjust to match your backend API URL)
-const API_URL = 'http://localhost:8000/psychology/';
+// Base URL for API (adjust to match your backend API URL) 
+//const API_URL = 'http://localhost:8000/psychology/';
 
 const PsychologyCrud = () => {
   const [records, setRecords] = useState([]);
@@ -49,7 +49,7 @@ const PsychologyCrud = () => {
   // Fetch all psychology records
   const fetchRecords = async () => {
     try {
-      const response = await axios.get(API_URL);
+      const response = await axios.get(/psychology/);
       setRecords(response.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -78,7 +78,7 @@ const PsychologyCrud = () => {
   // Create new record
   const handleCreate = async () => {
     try {
-      await axios.post(API_URL, formData);
+      await axios.post(/psychology/, formData);
       fetchRecords(); // Refresh records list
       handleCloseDialog(); // Close the dialog
     } catch (error) {
@@ -89,7 +89,7 @@ const PsychologyCrud = () => {
   // Update existing record
   const handleUpdate = async () => {
     try {
-      await axios.put(`${API_URL}${selectedRecord.visit_id}`, formData);
+      await axios.put(`/psychology/${selectedRecord.visit_id}`, formData);
       fetchRecords(); // Refresh records list
       handleCloseDialog(); // Close the dialog
     } catch (error) {
@@ -100,7 +100,7 @@ const PsychologyCrud = () => {
   // Delete a record
   const handleDelete = async (visitId) => {
     try {
-      await axios.delete(`${API_URL}${visitId}`);
+      await axios.delete(`/psychology/${visitId}`);
       fetchRecords(); // Refresh records list
     } catch (error) {
       console.error('Error deleting record:', error);

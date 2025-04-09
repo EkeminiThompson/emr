@@ -34,7 +34,7 @@ import { AddCircleOutline, RemoveCircleOutline } from '@mui/icons-material';
 // Initialize axios instance with interceptors
 const createApiClient = (token, handleLogout) => {
   const api = axios.create({
-    baseURL: process.env.REACT_APP_API_BASE_URL,
+    baseURL: process.env.REACT_APP_API_URL,
     headers: {
       'Content-Type': 'application/json'
     }

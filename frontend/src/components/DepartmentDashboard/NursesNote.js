@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import axios from '../../api/axiosInstance';
 import { useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -29,7 +29,6 @@ import PrintIcon from '@mui/icons-material/Print';
 import { useReactToPrint } from 'react-to-print';
 
 // Constants
-const API_BASE_URL = '/v1/nurses/v1';
 const NURSES_FIELDS = [
   'source_of_referral',
   'reasons_for_referral',
@@ -390,7 +389,7 @@ function NursesNote() {
     
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/patients/${patient_id}/nurses_note`);
+      const response = await axios.get(`/v1/nurses/v1/patients/${patient_id}/nurses_note`);
       setNotes(response.data || []);
       setError(null);
     } catch (err) {
@@ -405,7 +404,7 @@ function NursesNote() {
   const searchPatients = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/patients/`, {
+      const response = await axios.get(`/v1/nurses/v1/patients/`, {
         params: searchData
       });
       setPatients(response.data.patients || []);
@@ -438,7 +437,7 @@ function NursesNote() {
     setLoading(true);
     try {
       await axios.post(
-        `${API_BASE_URL}/patients/${nursesNoteData.patient_id}/nurses_note`,
+        `/v1/nurses/v1/patients/${nursesNoteData.patient_id}/nurses_note`,
         nursesNoteData
       );
       setMessage("Note added successfully");
@@ -462,7 +461,7 @@ function NursesNote() {
     setLoading(true);
     try {
       await axios.put(
-        `${API_BASE_URL}/patients/${editRecord.patient_id}/nurses_note/${editRecord.id}`,
+        `/v1/nurses/v1/patients/${editRecord.patient_id}/nurses_note/${editRecord.id}`,
         editRecord
       );
       setMessage("Note updated successfully");
@@ -487,7 +486,7 @@ function NursesNote() {
     setDeleteLoading(true);
     try {
       await axios.delete(
-        `${API_BASE_URL}/patients/${selectedPatient.patient_id}/nurses_note/${noteToDelete}`
+        `/v1/nurses/v1/patients/${selectedPatient.patient_id}/nurses_note/${noteToDelete}`
       );
       setMessage("Note deleted successfully");
       fetchNotes(selectedPatient.patient_id);

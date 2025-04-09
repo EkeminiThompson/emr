@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../api/axiosInstance'; // Import the configured axios instance
 
 // The main component that handles search, create, and CRUD operations.
 const Dashboard = () => {

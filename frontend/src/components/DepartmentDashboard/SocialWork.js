@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../api/axiosInstance';
 import { useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -25,7 +25,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 // Constants
-const API_BASE_URL = '/v1/social-work/v1';
+//const API_BASE_URL = '/v1/social-work/v1';
 const SOCIAL_WORK_FIELDS = [
   'housing_status',
   'employment_status',
@@ -330,7 +330,7 @@ function SocialWork() {
     
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/patients/${patient_id}/socialwork`);
+      const response = await axios.get(`/v1/social-work/v1/patients/${patient_id}/socialwork`);
       setSocialWorkHistory(response.data || []);
       setError(null);
     } catch (err) {
@@ -345,7 +345,7 @@ function SocialWork() {
   const searchPatients = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/patients`, {
+      const response = await axios.get(`/v1/social-work/v1/patients`, {
         params: searchData
       });
       setPatients(response.data.patients || []);
@@ -375,7 +375,7 @@ function SocialWork() {
     setLoading(true);
     try {
       await axios.post(
-        `${API_BASE_URL}/patients/${socialWorkData.patient_id}/socialwork`,
+        `/v1/social-work/v1/patients/${socialWorkData.patient_id}/socialwork`,
         socialWorkData
       );
       setMessage("Record added successfully");
@@ -399,7 +399,7 @@ function SocialWork() {
     setLoading(true);
     try {
       await axios.put(
-        `${API_BASE_URL}/patients/${editRecord.patient_id}/socialwork/${editRecord.id}`,
+        `/v1/social-work/v1/patients/${editRecord.patient_id}/socialwork/${editRecord.id}`,
         editRecord
       );
       setMessage("Record updated successfully");
@@ -424,7 +424,7 @@ function SocialWork() {
     setDeleteLoading(true);
     try {
       await axios.delete(
-        `${API_BASE_URL}/patients/${selectedPatient.patient_id}/socialwork/${recordToDelete}`
+        `/v1/social-work/v1/patients/${selectedPatient.patient_id}/socialwork/${recordToDelete}`
       );
       setMessage("Record deleted successfully");
       fetchSocialWorkHistory(selectedPatient.patient_id);

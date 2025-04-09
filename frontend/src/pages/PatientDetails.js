@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../api/axiosInstance'; 
 
 const PatientDetails = () => {
   const [patients, setPatients] = useState([]);

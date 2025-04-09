@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import axios from '../api/axiosInstance'; // Import the configured axios instance
 import { 
     Box, Button, TextField, Typography, Paper, Grid, 
     CircularProgress, Alert, Snackbar, MenuItem, Select, 

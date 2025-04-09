@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import axios from '../../api/axiosInstance';
 import { useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -29,7 +29,6 @@ import PrintIcon from '@mui/icons-material/Print';
 import { useReactToPrint } from 'react-to-print';
 
 // Constants
-const API_BASE_URL = '/v1/occupational/v1';
 const OCCUPATIONAL_FIELDS = [
   'long_term_goals',
   'short_term_goals',
@@ -388,7 +387,7 @@ function OccupationalTherapy() {
     
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/patients/${patient_id}/occupationaltherapy`);
+      const response = await axios.get(`/v1/occupational/v1/patients/${patient_id}/occupationaltherapy`);
       setRecords(response.data || []);
       setError(null);
     } catch (err) {
@@ -403,7 +402,7 @@ function OccupationalTherapy() {
   const searchPatients = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/patients/`, {
+      const response = await axios.get(`/v1/occupational/v1/patients/`, {
         params: searchData
       });
       setPatients(response.data.patients || []);
@@ -436,7 +435,7 @@ function OccupationalTherapy() {
     setLoading(true);
     try {
       await axios.post(
-        `${API_BASE_URL}/patients/${occupationalTherapyData.patient_id}/occupationaltherapy`,
+        `/v1/occupational/v1/patients/${occupationalTherapyData.patient_id}/occupationaltherapy`,
         occupationalTherapyData
       );
       setMessage("Record added successfully");
@@ -460,7 +459,7 @@ function OccupationalTherapy() {
     setLoading(true);
     try {
       await axios.put(
-        `${API_BASE_URL}/patients/${editRecord.patient_id}/occupationaltherapy/${editRecord.id}`,
+        `/v1/occupational/v1/patients/${editRecord.patient_id}/occupationaltherapy/${editRecord.id}`,
         editRecord
       );
       setMessage("Record updated successfully");
@@ -485,7 +484,7 @@ function OccupationalTherapy() {
     setDeleteLoading(true);
     try {
       await axios.delete(
-        `${API_BASE_URL}/patients/${selectedPatient.patient_id}/occupationaltherapy/${recordToDelete}`
+        `/v1/occupational/v1/patients/${selectedPatient.patient_id}/occupationaltherapy/${recordToDelete}`
       );
       setMessage("Record deleted successfully");
       fetchRecords(selectedPatient.patient_id);
