@@ -6,7 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000", // Allow frontend to connect
+    origin: "https://emr-5esm.vercel.app", // Allow your Vercel frontend
     methods: ["GET", "POST"],
   },
 });
@@ -29,7 +29,7 @@ io.on("connection", (socket) => {
       timestamp: new Date(),
     };
     messages.push(newMessage);
-    io.emit("newMessage", newMessage); // Broadcast the message to all clients
+    io.emit("newMessage", newMessage); // Broadcast to everyone
   });
 
   socket.on("disconnect", () => {
@@ -37,7 +37,8 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = 5000;
+// ====== THIS PART IS IMPORTANT ======
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

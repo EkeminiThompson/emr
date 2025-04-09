@@ -7,8 +7,8 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    // Create a new WebSocket connection
-    const newSocket = io("http://localhost:5000");
+    // Create a new WebSocket connection to your deployed backend
+    const newSocket = io("https://node-backend-2xfb.onrender.com"); // Update to the deployed URL
     setSocket(newSocket);
 
     // Cleanup on unmount
