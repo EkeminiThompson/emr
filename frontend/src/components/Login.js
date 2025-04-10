@@ -53,7 +53,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
       setUser(response.data.user);
 
       const roles = decodedToken.roles || response.data.user.roles || [];
-      const navigateTo = roles.includes("Admin") ? "/admin" : getRoleBasedRoute(roles);
+      const navigateTo = roles.includes("Admin") ? "/home" : getRoleBasedRoute(roles);
       navigate(navigateTo);
     } else {
       throw new Error("Invalid username or password.");
