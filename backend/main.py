@@ -16,10 +16,17 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+# Define allowed origins
+origins = [
+    "https://emr-5esm.vercel.app",           # Your Vercel deployment
+    "https://renewalridgehospital.com",      # Your custom domain without 'www'
+    "https://www.renewalridgehospital.com",  # Your custom domain with 'www' (in case user types www)
+]
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://emr-5esm.vercel.app"],  # Allows React frontend on Vercel
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],  # Allows all headers
@@ -42,6 +49,5 @@ if __name__ == "__main__":
         "app.main:app",  # Reference to the FastAPI app instance
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
-        reload=True,
         log_level=settings.LOG_LEVEL.lower(),
     )

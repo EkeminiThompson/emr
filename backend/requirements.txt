@@ -145,5 +145,5 @@ websockets
 Werkzeug
 wrapt
 yarl
-bcrypt==4.1.2
-passlib==1.7.4
+bcrypt==4.0.1
+passlib
