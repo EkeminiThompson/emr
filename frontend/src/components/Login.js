@@ -22,7 +22,7 @@ const Login = ({ setIsLoggedIn, setUser }) => {
     Laboratory: "/laboratory",
     "Occupational Therapy": "/occupational-therapy",
     "Clinical Psychology": "/clinical-psychology",
-    Nursing: "/nursing",
+    Nursing: "/nurses-note",
     "Social Work": "/social-work",
     Account: "/billing",
   };
