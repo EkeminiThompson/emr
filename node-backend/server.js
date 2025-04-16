@@ -6,7 +6,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "https://emr-5esm.vercel.app", // Allow your Vercel frontend
+    origin: [
+      "https://emr-5esm.vercel.app", // Keep the Vercel URL if still needed
+      "https://renewalridgehospital.com", // Add your custom domain
+      "https://www.renewalridgehospital.com", // Add www. version too just in case
+    ],
     methods: ["GET", "POST"],
   },
 });
